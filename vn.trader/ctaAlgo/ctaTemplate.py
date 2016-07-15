@@ -6,8 +6,9 @@
 
 from ctaBase import *
 from vtConstant import *
-
-
+import logging
+import numpy as np
+import pymysql
 ########################################################################
 class CtaTemplate(object):
     """CTA策略模板"""
@@ -41,7 +42,19 @@ class CtaTemplate(object):
     varList = ['inited',
                'trading',
                'pos']
-
+    # ----------------------------------------------------------------------
+    # 以下为自定义添加内容，记录log用
+    logger = logging.getLogger("loggingmodule.NomalLogger")
+    handler = logging.FileHandler("D:/python_workspace/log/test.log")
+    formatter = logging.Formatter("[%(levelname)s][%(funcName)s][%(asctime)s]%(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+    # ----------------------------------------------------------------------
+    # 以下为自定义添加内容，读取mysql的配置
+    conn = pymysql.connect(host='56533bf41fb88.gz.cdb.myqcloud.com', user='radarwinBitrees', passwd='jDt63iDH72df3',
+                           db='bitrees', port=14211)
+    cur = conn.cursor()
     #----------------------------------------------------------------------
     def __init__(self, ctaEngine, setting):
         """Constructor"""
@@ -165,4 +178,15 @@ class CtaTemplate(object):
     def putEvent(self):
         """发出策略状态变化事件"""
         self.ctaEngine.putStrategyEvent(self.name)
-    
+    #----------------------------------------------------------------------
+    def log(self,info):
+        '''记录log'''
+        self.logger.info(info)
+    # ----------------------------------------------------------------------
+    def loadbitressdata(self,backday):
+        self.cur.execute(
+            'SELECT open,high,low,close,volumn,date FROM okcn_btc_cny_30 ORDER BY date DESC LIMIT 0,%d' % backday)
+        data = self.cur.fetchall()
+        self.cur.close()
+        self.conn.close()
+        return data

@@ -14,7 +14,8 @@
 
 from ctaBase import *
 from ctaTemplate import CtaTemplate
-
+import numpy as np
+import logging
 
 ########################################################################
 class DoubleEmaDemo(CtaTemplate):
@@ -26,7 +27,6 @@ class DoubleEmaDemo(CtaTemplate):
     fastK = 0.9     # 快速EMA参数
     slowK = 0.1     # 慢速EMA参数
     initDays = 10   # 初始化数据所用的天数
-    
     # 策略变量
     bar = None
     barMinute = EMPTY_STRING
@@ -54,7 +54,13 @@ class DoubleEmaDemo(CtaTemplate):
                'fastMa0',
                'fastMa1',
                'slowMa0',
-               'slowMa1']  
+               'slowMa1']
+    # ----------------------------------------------------------------------
+    '''自定义参数&变量for bollingband'''
+    backday = 120   # 初始化数据所用天数
+    upline,midline,lowline = []
+    h,l,c,o,volume,date = []
+
 
     #----------------------------------------------------------------------
     def __init__(self, ctaEngine, setting):
@@ -72,24 +78,37 @@ class DoubleEmaDemo(CtaTemplate):
     def onInit(self):
         """初始化策略（必须由用户继承实现）"""
         self.writeCtaLog(u'双EMA演示策略初始化')
-        
+
         initData = self.loadBar(self.initDays)
         for bar in initData:
             self.onBar(bar)
         
         self.putEvent()
+        data = self.loadbitressdata(self.backday)
+        for i in len(data):
+            self.o.append(data[i][0])
+            self.h.append(data[i][1])
+            self.l.append(data[i][2])
+            self.c.append(data[i][3])
+            self.volume.append(data[i][4])
+            self.date.append(data[i][5])
+        self.log("初始化")
+
         
     #----------------------------------------------------------------------
     def onStart(self):
         """启动策略（必须由用户继承实现）"""
         self.writeCtaLog(u'双EMA演示策略启动')
         self.putEvent()
-    
+        self.log("策略启动")
+
+
     #----------------------------------------------------------------------
     def onStop(self):
         """停止策略（必须由用户继承实现）"""
         self.writeCtaLog(u'双EMA演示策略停止')
         self.putEvent()
+        self.log("策略停止")
         
     #----------------------------------------------------------------------
     def onTick(self, tick):
@@ -152,7 +171,23 @@ class DoubleEmaDemo(CtaTemplate):
         # 判断买卖
         crossOver = self.fastMa0>self.slowMa0 and self.fastMa1<self.slowMa1     # 金叉上穿
         crossBelow = self.fastMa0<self.slowMa0 and self.fastMa1>self.slowMa1    # 死叉下穿
-        
+
+
+        if crossOver:
+            if self.pos == 0:
+                self.log("buy at price %d" % (bar.close))
+                self.pos = 1
+            elif self.pos < 0:
+                self.log("sell cover and buy at price %d" %(bar.close))
+                self.pos = 1
+        elif crossBelow:
+            if self.pos == 0:
+                self.log("sell at price %d" % (bar.close))
+                self.pos = -1
+            elif self.pos > 0:
+                self.log("buy cover and sell at price %d" % (bar.close))
+                self.pos = -1
+        '''
         # 金叉和死叉的条件是互斥
         # 所有的委托均以K线收盘价委托（这里有一个实盘中无法成交的风险，考虑添加对模拟市价单类型的支持）
         if crossOver:
@@ -170,7 +205,7 @@ class DoubleEmaDemo(CtaTemplate):
             elif self.pos > 0:
                 self.sell(bar.close, 1)
                 self.short(bar.close, 1)
-                
+        '''
         # 发出状态更新事件
         self.putEvent()
         
