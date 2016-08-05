@@ -1,7 +1,8 @@
 [
+
     {
-        "name": "double ema",
-        "className": "DoubleEmaDemo",
-        "vtSymbol": "BTC_CNY_SPOT"
+        "name": "Bolling",
+        "className": "Bolling",
+        "vtSymbol": "LTC_CNY_SPOT"
     }
 ]

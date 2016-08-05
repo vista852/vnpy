@@ -9,6 +9,11 @@
 '''
 
 from ctaDemo import DoubleEmaDemo
-
+from strategyAtrRsi import AtrRsiStrategy
+from bolling import Bolling
+from ctaTradeTest import tradeTest
 STRATEGY_CLASS = {}
 STRATEGY_CLASS['DoubleEmaDemo'] = DoubleEmaDemo
+#STRATEGY_CLASS['AtrRsiStrategy'] = AtrRsiStrategy
+STRATEGY_CLASS['Bolling'] = Bolling
+STRATEGY_CLASS['tradeTest'] = tradeTest

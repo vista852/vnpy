@@ -33,7 +33,7 @@ def main():
     except:
         pass
     
-    # 初始化主引擎和主窗口对象
+    # 初始化主引擎和主窗口对
     mainEngine = MainEngine()
     mainWindow = MainWindow(mainEngine, mainEngine.eventEngine)
     mainWindow.showMaximized()

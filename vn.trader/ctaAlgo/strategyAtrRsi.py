@@ -29,14 +29,14 @@ class AtrRsiStrategy(CtaTemplate):
     atrMaLength = 10        # 计算ATR均线的窗口数
     rsiLength = 5           # 计算RSI的窗口数
     rsiEntry = 16           # RSI的开仓信号
-    trailingPercent = 0.8   # 百分比移动止损
+    trailingPercent = 0.2   # 百分比移动止损
     initDays = 10           # 初始化数据所用的天数
 
     # 策略变量
     bar = None                  # K线对象
     barMinute = EMPTY_STRING    # K线当前的分钟
 
-    bufferSize = 100                    # 需要缓存的数据的大小
+    bufferSize = 25                    # 需要缓存的数据的大小
     bufferCount = 0                     # 目前已经缓存了的数据的计数
     highArray = np.zeros(bufferSize)    # K线最高价的数组
     lowArray = np.zeros(bufferSize)     # K线最低价的数组
@@ -52,7 +52,8 @@ class AtrRsiStrategy(CtaTemplate):
     rsiSell = 0                         # RSI卖开阈值
     intraTradeHigh = 0                  # 移动止损用的持仓期内最高价
     intraTradeLow = 0                   # 移动止损用的持仓期内最低价
-
+    longStop = 0                        # 多单止损价
+    shortStop = 0                       # 空单止损价
     orderList = []                      # 保存委托代码的列表
 
     # 参数列表，保存了参数的名称
@@ -99,7 +100,7 @@ class AtrRsiStrategy(CtaTemplate):
         initData = self.loadBar(self.initDays)
         for bar in initData:
             self.onBar(bar)
-
+        self.log("初始化")
         self.putEvent()
 
     #----------------------------------------------------------------------
@@ -107,12 +108,14 @@ class AtrRsiStrategy(CtaTemplate):
         """启动策略（必须由用户继承实现）"""
         self.writeCtaLog(u'%s策略启动' %self.name)
         self.putEvent()
+        self.log("策略启动")
 
     #----------------------------------------------------------------------
     def onStop(self):
         """停止策略（必须由用户继承实现）"""
         self.writeCtaLog(u'%s策略停止' %self.name)
         self.putEvent()
+        self.log("策略停止")
 
     #----------------------------------------------------------------------
     def onTick(self, tick):
@@ -142,10 +145,19 @@ class AtrRsiStrategy(CtaTemplate):
             self.barMinute = tickMinute     # 更新当前的分钟
         else:                               # 否则继续累加新的K线
             bar = self.bar                  # 写法同样为了加快速度
-
             bar.high = max(bar.high, tick.lastPrice)
             bar.low = min(bar.low, tick.lastPrice)
             bar.close = tick.lastPrice
+
+        #print bar.close,tick.lastPrice,tickMinute,self.barMinute
+        if self.pos == 1 and bar.close < self.longStop :
+            self.log("sell cover at %0.4f,stop=%0.4f,time=%d" %(bar.close,self.longStop,bar.time))
+            self.pos = 0
+
+        elif self.pos == -1 and bar.close > self.shortStop :
+            self.log("buy cover at %0.4f,stop=%0.4f,time=%d" %(bar.close,self.shortStop,bar.time))
+            self.pos = 0
+
 
     #----------------------------------------------------------------------
     def onBar(self, bar):
@@ -163,9 +175,10 @@ class AtrRsiStrategy(CtaTemplate):
         self.closeArray[-1] = bar.close
         self.highArray[-1] = bar.high
         self.lowArray[-1] = bar.low
-        
+        #print self.bar.datetime,'+',self.bar.date,'+',self.bar.time,'+',self.bar.exchange,'+',self.bar.symbol,'+',self.bar.vtSymbol
         self.bufferCount += 1
         if self.bufferCount < self.bufferSize:
+            print self.bufferCount, self.bufferSize
             return
 
         # 计算指标数值
@@ -177,7 +190,8 @@ class AtrRsiStrategy(CtaTemplate):
         self.atrArray[-1] = self.atrValue
 
         self.atrCount += 1
-        if self.atrCount < self.bufferSize:
+        if self.atrCount < self.atrMaLength:
+            print self.bufferCount,self.bufferSize+self.atrMaLength
             return
 
         self.atrMa = talib.MA(self.atrArray, 
@@ -198,10 +212,14 @@ class AtrRsiStrategy(CtaTemplate):
                 # 使用RSI指标的趋势行情时，会在超买超卖区钝化特征，作为开仓信号
                 if self.rsiValue > self.rsiBuy:
                     # 这里为了保证成交，选择超价5个整指数点下单
-                    self.buy(bar.close+5, 1)
+                    #self.buy(bar.close+5, 1)
+                    self.log("buy at %0.4f,intratradehigh=%0.4f,intratradelow=%0.4f" %(bar.close,self.intraTradeHigh,self.intraTradeLow))
+                    self.pos = 1
 
                 elif self.rsiValue < self.rsiSell:
-                    self.short(bar.close-5, 1)
+                    #self.short(bar.close-5, 1)
+                    self.log("sell at %0.4f,intratradehigh=%0.4f,intratradelow=%0.4f" %(bar.close,self.intraTradeHigh,self.intraTradeLow))
+                    self.pos = -1
 
         # 持有多头仓位
         elif self.pos == 1:
@@ -209,19 +227,21 @@ class AtrRsiStrategy(CtaTemplate):
             self.intraTradeHigh = max(self.intraTradeHigh, bar.high)
             self.intraTradeLow = bar.low
             # 计算多头移动止损
-            longStop = self.intraTradeHigh * (1-self.trailingPercent/100)
+            self.longStop = self.intraTradeHigh * (1-self.trailingPercent/100)
+            print self.longStop,bar.time
             # 发出本地止损委托，并且把委托号记录下来，用于后续撤单
-            orderID = self.sell(longStop, 1, stop=True)
-            self.orderList.append(orderID)
+            #orderID = self.sell(longStop, 1, stop=True)
+            #self.orderList.append(orderID)
 
         # 持有空头仓位
         elif self.pos == -1:
             self.intraTradeLow = min(self.intraTradeLow, bar.low)
             self.intraTradeHigh = bar.high
 
-            shortStop = self.intraTradeLow * (1+self.trailingPercent/100)
-            orderID = self.cover(shortStop, 1, stop=True)
-            self.orderList.append(orderID)
+            self.shortStop = self.intraTradeLow * (1+self.trailingPercent/100)
+            print self.shortStop,bar.time
+            #orderID = self.cover(shortStop, 1, stop=True)
+            #self.orderList.append(orderID)
 
         # 发出状态更新事件
         self.putEvent()

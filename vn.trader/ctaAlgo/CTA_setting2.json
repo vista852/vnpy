@@ -1,0 +1,11 @@
+[
+    
+   {
+        "name": "tradeTest",
+        "className": "tradeTest",
+        "vtSymbol": "BTC_CNY_SPOT,LTC_CNY_SPOT",
+		"longSymbol": "BTC_CNY_SPOT",
+		"shortSymbol": "LTC_CNY_SPOT"
+    }
+
+]

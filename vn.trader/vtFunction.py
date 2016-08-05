@@ -42,6 +42,25 @@ def loadMongoSetting():
     return host, port
 
 #----------------------------------------------------------------------
+def loadMysqlSetting():
+    '''载入Mysqk数据库的配置'''
+    try:
+        f = file("mysql_connect.json")
+        setting = json.load(f)
+        host = setting['host']
+        port = setting['port']
+        user = setting['user']
+        passwd = setting['passwd']
+        db = setting['db']
+    except:
+        host = 'localhost'
+        port = 3306
+        user = 'root'
+        passwd = 'root'
+        db = 'tradelog'
+
+    return host,port,user,passwd,db
+#----------------------------------------------------------------------
 def todayDate():
     """获取当前本机电脑时间的日期"""
     return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)    
