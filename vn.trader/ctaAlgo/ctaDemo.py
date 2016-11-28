@@ -84,18 +84,6 @@ class DoubleEmaDemo(CtaTemplate):
             self.onBar(bar)
         
         self.putEvent()
-        '''
-        data = self.loadbitressdata(self.backday)
-        for i in len(data):
-            self.o.append(data[i][0])
-            self.h.append(data[i][1])
-            self.l.append(data[i][2])
-            self.c.append(data[i][3])
-            self.volume.append(data[i][4])
-            self.date.append(data[i][5])
-        self.log("初始化")
-
-        '''
     #----------------------------------------------------------------------
     def onStart(self):
         """启动策略（必须由用户继承实现）"""

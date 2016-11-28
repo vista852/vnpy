@@ -16,17 +16,18 @@ from ctaTemplate import CtaTemplate
 from datetime import datetime
 import talib
 import numpy as np
-from radarwinFunction.rwDbConnection import *
-from radarwinFunction.rwConstant import *
-from radarwinFunction.rwLoggerFunction import *
 
 
 ########################################################################
 class Bolling(CtaTemplate):
     """布林带突破系统"""
     className = 'Bolling'
-    author = u'vista'
-    tablename = 'bolling_okcoin_test'
+
+    user = 'root'
+    passwd = 'root'
+    db = 'tradelog'
+    port = 3306
+    tablename = 'okcoin_ltc'
     # 策略参数
     bollingLength = 30
     atrFactor = 6
@@ -100,8 +101,7 @@ class Bolling(CtaTemplate):
     def __init__(self, ctaEngine, setting):
         """Constructor"""
         super(Bolling, self).__init__(ctaEngine, setting)
-        self.logger = rwLoggerFunction()
-        self.dbCon = rwDbConnection()
+
         # 注意策略类中的可变对象属性（通常是list和dict等），在策略初始化时需要重新创建，
         # 否则会出现多个策略实例之间数据共享的情况，有可能导致潜在的策略逻辑错误风险，
         # 策略类中的这些可变对象属性可以选择不写，全都放在__init__下面，写主要是为了阅读
@@ -113,29 +113,10 @@ class Bolling(CtaTemplate):
         self.writeCtaLog(u'%s策略初始化' % self.name)
 
 
-
         # 载入历史数据，并采用回放计算的方式初始化策略数值
-        initData = []
-        SQL = 'SELECT open,high,low,close,volumn,date FROM okcn_btc_cny_5 ORDER BY date DESC LIMIT 1,%s'
-        params = [2]
+        initData = self.loadbitressdata(self.initDays)
 
-        data = self.dbCon.getMySqlData(SQL, self.initDays, DATABASE_CLOUD)
-        for d in data[::-1]:
-            bar = CtaBarData()
-            bar.open = d['open']
-            bar.high = d['high']
-            bar.low = d['low']
-            bar.close = d['close']
-            bar.volume = d['volumn']
-            bar.datetime=d['date']
-            bar.date=d['date']
-            bar.time = d['date']
-            bar.symbol = 'BTC_CNY_SPOT'
-            bar.vtSymbol = 'BTC_CNY_SPOT'
-            initData.append(bar)
-
-        #lasttradedata = self.readtradelog2mysql()
-        lasttradedata = False
+        lasttradedata = self.readtradelog2mysql()
         if lasttradedata:
             self.lasttradetype = lasttradedata[0][7]
             self.lastpos = lasttradedata[0][8]
@@ -175,7 +156,7 @@ class Bolling(CtaTemplate):
         for bar in initData:
             self.onBar(bar)
         print self.intraTradeHigh,self.intraTradeLow
-        self.logger.setInfoLog("初始化")
+        self.log("初始化")
         self.putEvent()
 
     # ----------------------------------------------------------------------
@@ -183,14 +164,14 @@ class Bolling(CtaTemplate):
         """启动策略（必须由用户继承实现）"""
         self.writeCtaLog(u'%s策略启动' % self.name)
         self.putEvent()
-        self.logger.setInfoLog("策略启动")
+        self.log("策略启动")
 
     # ----------------------------------------------------------------------
     def onStop(self):
         """停止策略（必须由用户继承实现）"""
         self.writeCtaLog(u'%s策略停止' % self.name)
         self.putEvent()
-        self.logger.setInfoLog("策略停止")
+        self.log("策略停止")
 
     # ----------------------------------------------------------------------
     def onTick(self, tick):
@@ -200,8 +181,8 @@ class Bolling(CtaTemplate):
         #print tickMinute , self.barMinute
 
         # 当推送来的tick数据分钟数不等于指定周期时，生成新的K线
-        #if tickMinute != self.barMinute:    #一分钟
-        if ((tickMinute != self.barMinute and tickMinute % 5 == 0) or not self.bar):  #五分钟
+        if tickMinute != self.barMinute:    #一分钟
+        #if ((tickMinute != self.barMinute and tickMinute % 5 == 0) or not self.bar):  #五分钟
             if self.bar:
                 self.onBar(self.bar)
 
@@ -221,7 +202,7 @@ class Bolling(CtaTemplate):
 
             self.bar = bar  # 这种写法为了减少一层访问，加快速度
             self.barMinute = tickMinute  # 更新当前的分钟
-            print 'K线已更新，最近K线时间：',self.barMinute,bar.datetime,tickMinute
+            print 'K线已更新，最近K线时间：',self.barMinute,self.bar
 
         else:  # 否则继续累加新的K线
             bar = self.bar  # 写法同样为了加快速度
@@ -231,45 +212,44 @@ class Bolling(CtaTemplate):
             self.realtimeprice = bar.close  # 更新策略界面实时价格
 
         #持仓状态下判断出场
-        if self.trading == True:
-            if self.direction > 0 and self.pos > 0:
-                self.intraTradeHigh = max(self.intraTradeHigh, bar.high)
-                self.longStop = self.intraTradeHigh - self.atrArray[-1]*self.atrFactor
-                if bar.close < self.longStop:
-                    self.direction = 0
-                    self.signal = 0
-                    self.entryPrice = 0
-                    self.lasttradetype = 1
-                    self.sell(bar.close - 1, self.lots)
-            if self.direction < 0 and self.pos < 0:
-                self.intraTradeLow = min(self.intraTradeLow, bar.low)
-
-                self.shortStop = self.intraTradeLow + self.atrArray[-1]*self.atrFactor
-                if bar.close > self.shortStop:
-                    self.direction = 0
-                    self.signal = 0
-                    self.entryPrice = 0
-                    self.lasttradetype = -1
-                    self.buy(bar.close + 1, self.lots)
-
-            # 判断是否开仓
-            if self.pos == 0 and self.direction == 0 and self.signal == 1 and bar.close > self.upLineArray[-1]:
-                self.direction = 1
-                self.entryPrice = bar.close
-                self.shortStop = 0
-                self.intraTradeHigh = bar.close
-                self.intraTradeHigh = max(self.intraTradeHigh, bar.high)
+        if self.direction > 0 and self.pos > 0:
+            self.intraTradeHigh = max(self.intraTradeHigh, bar.high)
+            self.longStop = self.intraTradeHigh - self.atrArray[-1]*self.atrFactor
+            if bar.close < self.longStop:
+                self.direction = 0
+                self.signal = 0
+                self.entryPrice = 0
                 self.lasttradetype = 1
-                self.buy(bar.close+1, self.lots)
+                self.sell(bar.close - 1, self.lots)
+        if self.direction < 0 and self.pos < 0:
+            self.intraTradeLow = min(self.intraTradeLow, bar.low)
 
-            if self.pos == 0 and self.direction == 0 and self.signal == -1 and bar.close < self.lowLineArray[-1]:
-                self.direction = -1
-                self.entryPrice = bar.close
-                self.longStop = 0
-                self.intraTradeLow = bar.close
-                self.intraTradeLow = min(self.intraTradeLow, bar.low)
+            self.shortStop = self.intraTradeLow + self.atrArray[-1]*self.atrFactor
+            if bar.close > self.shortStop:
+                self.direction = 0
+                self.signal = 0
+                self.entryPrice = 0
                 self.lasttradetype = -1
-                self.sell(bar.close-1, self.lots)
+                self.buy(bar.close + 1, self.lots)
+
+        # 判断是否开仓
+        if self.pos == 0 and self.direction == 0 and self.signal == 1 and bar.close > self.upLineArray[-1]:
+            self.direction = 1
+            self.entryPrice = bar.close
+            self.shortStop = 0
+            self.intraTradeHigh = bar.close
+            self.intraTradeHigh = max(self.intraTradeHigh, bar.high)
+            self.lasttradetype = 1
+            self.buy(bar.close+1, self.lots)
+
+        if self.pos == 0 and self.direction == 0 and self.signal == -1 and bar.close < self.lowLineArray[-1]:
+            self.direction = -1
+            self.entryPrice = bar.close
+            self.longStop = 0
+            self.intraTradeLow = bar.close
+            self.intraTradeLow = min(self.intraTradeLow, bar.low)
+            self.lasttradetype = -1
+            self.sell(bar.close-1, self.lots)
 
     # ----------------------------------------------------------------------
     def onBar(self, bar):
@@ -370,14 +350,17 @@ class Bolling(CtaTemplate):
         pass
 
     def onTrade(self, trade):
-        if self.direction == 0 :
-            tradedirection = trade.direction.encode('utf-8') + '平'
-        else :
-            tradedirection = trade.direction.encode('utf-8') + '开'
-
-        value = [tradedirection, trade.price, trade.volume, self.intraTradeHigh, self.intraTradeLow, datetime.now(), self.lasttradetype, self.direction]
-        sqlcontent = 'insert into ' + self.tablename + '(trade_type,price,volume,intrahigh,intralow,trade_time,lasttradetype,pos) values(%s,%s,%s,%s,%s,%s,%s,%s)'
-        self.dbCon.insUpdMySqlData(sqlcontent, value,dbFlag=DATABASE_TRADER)
+        print 'tradeinfo:'+ trade.direction, trade.price , trade.volume,trade.tradeTime
+        value = [trade.direction.encode('utf_8'), trade.price, trade.volume, self.intraTradeHigh, self.intraTradeLow, datetime.now(), self.lasttradetype, self.direction]
+        self.writetradelog2mysql(value)
+        print type('sellopen')
+        print type(trade.direction)
+        print type(trade.direction.encode('utf_8'))
+        print type(trade.tradeTime)
+        print type(self.bar.datetime)
+        print type(datetime.now())
+        print datetime.now()
+        print self.bar.datetime
         pass
 
 

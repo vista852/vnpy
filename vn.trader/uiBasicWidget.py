@@ -708,7 +708,8 @@ class TradingWidget(QtGui.QFrame):
         self.spinPrice.setMinimum(0)
         self.spinPrice.setMaximum(100000)
 
-        self.spinVolume = QtGui.QSpinBox()
+        self.spinVolume = QtGui.QDoubleSpinBox()
+        self.spinVolume.setDecimals(3)
         self.spinVolume.setMinimum(0)
         self.spinVolume.setMaximum(1000000)
 

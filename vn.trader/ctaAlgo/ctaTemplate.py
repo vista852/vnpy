@@ -52,12 +52,14 @@ class CtaTemplate(object):
                'pos']
     # ----------------------------------------------------------------------
     # 以下为自定义添加内容，记录log用
+    '''
     logger = logging.getLogger("loggingmodule.NomalLogger")
     handler = logging.FileHandler("D:/python_workspace/log/atr_test.log")
     formatter = logging.Formatter("[%(levelname)s][%(funcName)s][%(asctime)s]%(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
+    '''
     # ----------------------------------------------------------------------
     # 以下为自定义添加内容，读取mysql的配置
     conn = pymysql.connect(host='56533bf41fb88.gz.cdb.myqcloud.com', user='radarwinBitrees', passwd='jDt63iDH72df3',
@@ -187,13 +189,14 @@ class CtaTemplate(object):
         """发出策略状态变化事件"""
         self.ctaEngine.putStrategyEvent(self.name)
     #----------------------------------------------------------------------
+    '''
     def log(self,info):
-        '''记录log'''
         self.logger.info(info)
+
     # ----------------------------------------------------------------------
     def loadbitressdata(self,backday):
         self.cur.execute(
-            'SELECT open,high,low,close,volumn,date FROM okcn_ltc_cny_5 ORDER BY date DESC LIMIT 1,%d' % backday)
+            'SELECT open,high,low,close,volumn,date FROM okcn_btc_cny_1 ORDER BY date DESC LIMIT 1,%d' % backday)
         data = self.cur.fetchall()
         datalength = len(data)
         l = []
@@ -208,13 +211,13 @@ class CtaTemplate(object):
                 bar.datetime = data[d][5]
                 bar.date = data[d][5]
                 bar.time = data[d][5]
-                bar.symbol = 'LTC_CNY_SPOT'
-                bar.vtSymbol = 'LTC_CNY_SPOT'
+                bar.symbol = 'BTC_CNY_SPOT'
+                bar.vtSymbol = 'BTC_CNY_SPOT'
                 l.append(bar)
         return l
 
     def getperioddata(self,date,type):
-        sqlcontent = 'SELECT high,low,DATE FROM okcn_ltc_cny_1  WHERE DATE > '+'\''+str(date)+'\''+' ORDER BY DATE DESC'
+        sqlcontent = 'SELECT high,low,DATE FROM okcn_btc_cny_1  WHERE DATE > '+'\''+str(date)+'\''+' ORDER BY DATE DESC'
         self.cur.execute(sqlcontent)
         data = self.cur.fetchall()
         high = []
@@ -229,14 +232,14 @@ class CtaTemplate(object):
             return max(high)
         if type == 'low':
             return min(low)
-
+    '''
 
 
 
     def writetradelog2mysql(self,value):
         conn = pymysql.connect(host=self.host,user=self.user,passwd=self.passwd,db=self.db,port=self.port)
         cur = conn.cursor()
-        sqlcontent = 'insert into '+self.tablename+'(trade_type,price,intrahigh,intralow,trade_time,lasttradetype,pos) values(%s,%s,%s,%s,%s,%s,%s)'
+        sqlcontent = 'insert into '+self.tablename+'(trade_type,price,volume,intrahigh,intralow,trade_time,lasttradetype,pos) values(%s,%s,%s,%s,%s,%s,%s,%s)'
         cur.execute(sqlcontent,value)
         conn.commit()
         cur.close()
@@ -251,3 +254,12 @@ class CtaTemplate(object):
         cur.close()
         conn.close()
         return  data
+
+if __name__ == '__main__':
+    conn = pymysql.connect(host='localhost', user='root', passwd='root', db='tradelog', port=3306)
+    cur = conn.cursor()
+    sqlcontent = 'select * from ' + 'okcoin_ltc' + ' order by order_id desc limit 0,1'
+    cur.execute(sqlcontent)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
